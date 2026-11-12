@@ -105,7 +105,7 @@ docker compose down
 docker compose down -v
 ```
 
-Способ 2: без Docker (для разработки)
+### Способ 2: без Docker (для разработки)
 Требования: Java 17, Maven, Node.js 20+, PostgreSQL 16.
 
  1. Создать БД
