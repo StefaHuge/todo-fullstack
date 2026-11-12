@@ -51,7 +51,7 @@
 - 📊 **Actuator** — health, metrics
 
 ## 🏗 Архитектура
-
+```text
 ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
 │ React SPA │─────▶│ Nginx / │─────▶│ Spring Boot │
 │ (Vercel / │ │ Vercel │ │ (Render / │
@@ -63,7 +63,7 @@
 │ (Render / │
 │ Docker) │
 └──────────────┘
-
+```
 
 **Слоистая архитектура бэкенда:** `Controller → Service → Repository → Entity`
 
