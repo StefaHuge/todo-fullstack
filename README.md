@@ -52,17 +52,17 @@
 
 ## 🏗 Архитектура
 ```text
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│ React SPA │─────▶│ Nginx / │─────▶│ Spring Boot │
-│ (Vercel / │ │ Vercel │ │ (Render / │
-│ Docker) │ │ (proxy) │ │ Docker) │
-└──────────────┘ └──────────────┘ └──────┬───────┘
-│
-┌──────▼───────┐
-│ PostgreSQL │
-│ (Render / │
-│ Docker) │
-└──────────────┘
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ React SPA    │--->│ Nginx /      │--->│ Spring Boot  │
+│ (Vercel /    │    │ Vercel       │    │ (Render /    │
+│ Docker)      │    │ (proxy)      │    │ Docker)      │
+└──────────────┘    └──────────────┘    └──────┬───────┘
+                                               │
+                                        ┌──────▼───────┐
+                                        │ PostgreSQL   │
+                                        │ (Render /    │
+                                        │ Docker)      │
+                                        └──────────────┘
 ```
 
 **Слоистая архитектура бэкенда:** `Controller → Service → Repository → Entity`
