@@ -97,8 +97,9 @@ PostgreSQL: 127.0.0.1:5432, БД todo_db, пользователь postgres, п�
 
 ```bash
 docker compose down
-Остановить и удалить данные БД:
 ```
+
+Остановить и удалить данные БД:
 
 ```bash
 docker compose down -v
@@ -108,19 +109,24 @@ docker compose down -v
 Требования: Java 17, Maven, Node.js 20+, PostgreSQL 16.
 
 # 1. Создать БД
+```bash
 createdb todo_db
-
+```
 # 2. Бэкенд
+```bash
 cd todo-spring
 cp src/main/resources/application.yml.example src/main/resources/application.yml
+```
 # отредактировать application.yml: пароль от PostgreSQL, JWT_SECRET
+```bash
 ./mvnw spring-boot:run
-
+```
 # 3. Фронтенд (в другом терминале)
+```bash
 cd todo-frontend
 npm install --legacy-peer-deps
 npm run dev
-
+```
 Фронтенд: http://localhost:5173 (Vite проксирует /api на localhost:8081).
 
 📚 API
