@@ -132,7 +132,7 @@ npm run dev
 ## 📚 API
 Полная документация — в Swagger UI: http://localhost:8081/swagger-ui.html (или на Render).
 
-Основные эндпоинты
+### Основные эндпоинты
 
 Метод	Путь	Описание	Auth
 POST	/api/auth/register	Регистрация	❌
@@ -165,7 +165,7 @@ curl http://localhost:8081/api/tasks \
 cd todo-spring
 ./mvnw test
 ```
-Покрытие:
+### Покрытие:
 
 Unit — TaskServiceTest (8 тестов, Mockito)
 
