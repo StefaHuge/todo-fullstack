@@ -19,7 +19,7 @@
 | **Swagger UI** | https://todo-spring-boot-m3g2.onrender.com/swagger-ui.html |
 | **Health check** | https://todo-spring-boot-m3g2.onrender.com/actuator/health |
 
-> ⚠️ Бэкенд на Render Free Tier «засыпает» через 15 минут бездействия. Первый запрос после сна может занять 20–30 секунд. Настроен пинг через **UptimeRobot** (`/actuator/health`, интервал 5 минут).
+> ⚠️ Демо на Vercel и Render открываются через VPN. Бэкенд на Render Free Tier «засыпает» через 15 минут бездействия. Первый запрос после сна может занять 20–30 секунд. Настроен пинг через **UptimeRobot** (`/actuator/health`, интервал 5 минут).
 
 ### Тестовый аккаунт
 
