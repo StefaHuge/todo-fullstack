@@ -129,7 +129,7 @@ npm run dev
 ```
 Фронтенд: http://localhost:5173 (Vite проксирует /api на localhost:8081).
 
-📚 API
+## 📚 API
 Полная документация — в Swagger UI: http://localhost:8081/swagger-ui.html (или на Render).
 
 Основные эндпоинты
@@ -159,7 +159,7 @@ curl http://localhost:8081/api/tasks \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
-🧪 Тесты
+## 🧪 Тесты
 
 ```bash
 cd todo-spring
@@ -175,7 +175,7 @@ Integration — TaskIntegrationTest (@SpringBootTest + Testcontainers)
 
 Всего: 16 тестов, все проходят.
 
-🔄 CI/CD
+## 🔄 CI/CD
 
 ```text
 push в main
@@ -196,7 +196,7 @@ Backend deploy: Render через Deploy Hook (секрет RENDER_DEPLOY_HOOK_U
 
 Frontend deploy: Vercel (автодеплой при пуше)
 
-📁 Структура проекта
+## 📁 Структура проекта
 ```text
 todo-fullstack/
 ├── .github/workflows/ci.yml     # GitHub Actions
@@ -231,7 +231,7 @@ todo-fullstack/
         └── components/
 ```
 
-📦 Старые репозитории (архив)
+## 📦 Старые репозитории (архив)
 Проект вырос из двух отдельных репозиториев, которые теперь объединены в монорепозиторий:
 
 todo-spring-boot — старый бэкенд (архив)
@@ -240,7 +240,7 @@ todo-frontend — старый фронтенд (архив)
 
 Оба помечены как «перенесено в todo-fullstack».
 
-⚠️ Известные ограничения
+## ⚠️ Известные ограничения
 Render Free Tier засыпает через 15 минут бездействия (cold start ~20–30 с). Настроен пинг через UptimeRobot.
 
 npm install на Vercel требует --legacy-peer-deps (настроено в Settings → Build & Development → Install Command).
@@ -249,9 +249,9 @@ npm install на Vercel требует --legacy-peer-deps (настроено в
 
 Mockito self-attaching warning в IntelliJ не убирается через pom.xml — запускайте тесты через ./mvnw test.
 
-📄 Лицензия
+## 📄 Лицензия
 MIT
 
-👤 Автор
+## 👤 Автор
 StefaHuge — GitHub
 
