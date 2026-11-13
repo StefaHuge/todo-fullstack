@@ -40,6 +40,8 @@ public class SecurityConfig {
                                 .requestMatchers("/v3/api-docs/swagger-config").permitAll()
                                 .requestMatchers("/webjars/**").permitAll()
                                 .requestMatchers("/actuator/health").permitAll()
+                                .requestMatchers("/actuator/prometheus").permitAll()
+                                .requestMatchers("/actuator/**").permitAll()
                                 .anyRequest().authenticated()
                         )
                 .sessionManagement(
