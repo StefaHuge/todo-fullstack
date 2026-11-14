@@ -24,4 +24,6 @@ public class TaskResponseDTO {
     private Priority priority;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    private LocalDateTime deadline;
 }

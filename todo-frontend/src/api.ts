@@ -8,6 +8,7 @@ export interface Task {
     priority: 'HIGH' | 'MEDIUM' | 'LOW';
     createdAt: string;
     updatedAt: string;
+    deadline: string | null;
 }
 
 export interface AuthResponse {
@@ -58,22 +59,29 @@ export async function getTasks(token: string): Promise<Task[]> {
     return data.content;
 }
 
-export async function createTask(token: string, description: string,
-                                 priority: string): Promise<Task> {
+export async function createTask(
+    token: string,
+    description: string,
+    priority: string,
+    deadline: string | null = null
+): Promise<Task> {
     const response = await fetch(`${API_BASE_URL}/api/tasks`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ description, priority }),
+        body: JSON.stringify({ description, priority, deadline }),
     });
 
     if (!response.ok) throw new Error('Ошибка создания задачи');
     return response.json();
 }
 
-export async function toggleTask(token: string, task: Task): Promise<Task> {
+export async function toggleTask(
+    token: string,
+    task: Task
+): Promise<Task> {
     const response = await fetch(`${API_BASE_URL}/api/tasks/${task.id}`, {
         method: 'PUT',
         headers: {
@@ -84,6 +92,7 @@ export async function toggleTask(token: string, task: Task): Promise<Task> {
             description: task.description,
             priority: task.priority,
             isCompleted: !task.isCompleted,
+            deadline: task.deadline,
         }),
     });
 
@@ -96,7 +105,8 @@ export async function updateTask(
     taskId: number,
     description: string,
     priority: 'HIGH' | 'MEDIUM' | 'LOW',
-    isCompleted: boolean
+    isCompleted: boolean,
+    deadline: string | null = null
 ): Promise<Task> {
     const response = await fetch(`${API_BASE_URL}/api/tasks/${
         taskId}`, {
@@ -109,6 +119,7 @@ export async function updateTask(
             description,
             priority,
             isCompleted,
+            deadline,
         }),
     });
 

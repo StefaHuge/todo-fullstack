@@ -159,4 +159,35 @@ public class TaskControllerTest {
         mockMvc.perform(delete("/api/tasks/99"))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    void shouldCreateTaskWithDeadline() throws Exception {
+        String json = """
+                {
+                "description": "С дедлайном",
+                "priority": "HIGH",
+                "isCompleted": "false",
+                "deadline": "2026-12-31T23:59:00"
+                }
+                """;
+
+        TaskResponseDTO response = TaskResponseDTO.builder()
+                .id(1L)
+                .userTaskNumber(1L)
+                .description("С дедлайном")
+                .priority(Task.Priority.HIGH)
+                .isCompleted(false)
+                .deadline(java.time.LocalDateTime.of(2026, 12, 31, 23, 59))
+                .build();
+
+        when(taskService.createTask(any(TaskRequestDTO.class),
+                eq(1L))).thenReturn(response);
+
+        mockMvc.perform(post("/api/tasks")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(json))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.deadline")
+                        .value("2026-12-31T23:59:00"));
+    }
 }

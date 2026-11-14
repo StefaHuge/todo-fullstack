@@ -12,6 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -239,5 +240,39 @@ public class TaskServiceTest {
 
         verify(taskRepository, never()).delete(any());
         verify(taskRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void shouldSaveDeadlineWhenCreatTask() {
+        Long userId = 1L;
+        User user = new User();
+        user.setId(userId);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(taskRepository.findMaxUserTaskNumberByUserId(userId))
+                .thenReturn(null);
+
+        TaskRequestDTO request = new TaskRequestDTO();
+        request.setDescription("С дедлайном");
+        request.setPriority(Task.Priority.HIGH);
+        request.setIsCompleted(false);
+        LocalDateTime deadline = LocalDateTime.of(
+                2020, 12, 31, 23, 59);
+        request.setDeadline(deadline);
+
+        Task savedTask = new Task();
+        savedTask.setId(1L);
+        savedTask.setUserTaskNumber(1L);
+        savedTask.setDescription("С дедлайном");
+        savedTask.setPriority(Task.Priority.HIGH);
+        savedTask.setCompleted(false);
+        savedTask.setUser(user);
+        savedTask.setDeadline(deadline);
+        when(taskRepository.save(any(Task.class))).thenReturn(savedTask);
+
+        TaskResponseDTO result = taskService.createTask(request, userId);
+
+        assertThat(result.getDeadline()).isEqualTo(deadline);
+        verify(taskRepository).save(argThat(task ->
+                deadline.equals(task.getDeadline())));
     }
 }

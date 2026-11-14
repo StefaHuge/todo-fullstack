@@ -18,6 +18,8 @@ function App() {
   const [editDescription, setEditDescription] = useState('');
   const [editPriority, setEditPriority] = useState<'HIGH' | 'MEDIUM' |
   'LOW'>('MEDIUM');
+  const [newDeadline, setNewDeadline] = useState<string>('');
+  const [editDeadline, setEditDeadline] = useState<string>('');
 
   useEffect(() => {
     if (token) {
@@ -75,10 +77,16 @@ function App() {
     e.preventDefault();
     if (!newTask.trim() || !token) return;
     try {
-      const task = await createTask(token, newTask, newPriority);
+      const task = await createTask(
+          token,
+          newTask,
+          newPriority,
+          newDeadline ? newDeadline : null
+      );
       setTasks([...tasks, task]);
       setNewTask('');
       setNewPriority('MEDIUM');
+      setNewDeadline('');
     } catch (err: unknown) {
       handleError(err);
     }
@@ -115,11 +123,15 @@ function App() {
     setEditingTask(task);
     setEditDescription(task.description);
     setEditPriority(task.priority);
+    setEditDeadline(
+        task.deadline ? task.deadline.slice(0, 16) : ''
+    );
   };
 
   const handleEditCancel = () => {
     setEditingTask(null);
     setEditDescription('');
+    setEditDeadline('');
   };
 
   const handleEditSave = async () => {
@@ -130,12 +142,14 @@ function App() {
           editingTask.id,
           editDescription,
           editPriority,
-          editingTask.isCompleted
+          editingTask.isCompleted,
+          editDeadline ? editDeadline : null
       );
       setTasks(tasks.map((t) => (t.id === updated.id ?
           updated : t)));
       setEditingTask(null);
       setEditDescription('');
+      setEditDeadline('');
     } catch (err: unknown) {
       handleError(err);
     }
@@ -237,8 +251,9 @@ function App() {
                 type="text"
                 placeholder="Новая задача..."
                 value={newTask}
-                onChange={(e
-                ) => setNewTask(e.target.value)}
+                onChange={
+              (e) =>
+                  setNewTask(e.target.value)}
                 className="flex-1 p-3 border rounded-lg"
             />
             <select
@@ -252,6 +267,15 @@ function App() {
               <option value="MEDIUM">🟡 Средний</option>
               <option value="LOW">🟢 Низкий</option>
             </select>
+            <input
+                type="datetime-local"
+                value={newDeadline}
+                onChange={
+              (e) =>
+                    setNewDeadline(e.target.value)}
+                className="p-3 border rounded-lg bg-white sm:w-auto"
+                title="Дедлайн (опционально)"
+            />
             <button type="submit" className="bg-green-600 text-white
             px-6 py-3 rounded-lg font-semibold hover:bg-green-700">
               Добавить
@@ -275,7 +299,8 @@ function App() {
                         <div className="flex gap-2 w-full">
                         <select
                             value={editPriority}
-                            onChange={(e) =>
+                            onChange={
+                          (e) =>
                               setEditPriority(e.target.value as 'HIGH' |
                               'MEDIUM' | 'LOW')}
                             className="flex-1 p-2 border rounded-lg bg-white w-full sm:w-auto"
@@ -284,7 +309,15 @@ function App() {
                           <option value="MEDIUM">🟡 Средний</option>
                           <option value="LOW">🟢 Низкий</option>
                         </select>
-
+                          <input
+                              type="datetime-local"
+                              value={editDeadline}
+                              onChange={
+                            (e)=>
+                                  setEditDeadline(e.target.value)}
+                              className="p-2 border rounded-lg bg-white"
+                              title="Дедлайн (опционально)"
+                          />
                         <button
                             onClick={handleEditSave}
                             className="px-3 py-2 rounded
@@ -310,6 +343,23 @@ function App() {
                   <span className={`flex-1 min-w-[150px] ${task.isCompleted ? 
                       'line-through text-gray-400' : ''}`}>
     {task.description}
+                    {task.deadline && (
+                    <span
+                      className={`block text-xs mt-1 ${
+                        isOverdue(task) ? 'font-semibold text-red-600' :
+                            'text-gray-500'
+                      }`}
+                    >
+                      📅 {new Date(task.deadline).toLocaleString('ru-RU', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        })}
+                      {isOverdue(task) && ' (просрочено)'}
+                    </span>
+                      )}
   </span>
                   <div className="flex items-center gap-2 ml-auto">
                   <span className={`text-xs px-2 py-1 rounded ${
@@ -357,3 +407,11 @@ function App() {
 }
 
 export default App;
+
+function isOverdue(task: Task): boolean {
+  return (
+      !task.isCompleted &&
+      task.deadline !== null &&
+      new Date(task.deadline) < new Date()
+  );
+}

@@ -43,6 +43,7 @@ public class TaskService {
                 .priority(task.getPriority())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
+                .deadline(task.getDeadline())
                 .build();
     }
 
@@ -64,6 +65,7 @@ public class TaskService {
         task.setPriority(request.getPriority());
         task.setUser(user);
         task.setUserTaskNumber(nextNumber);
+        task.setDeadline(request.getDeadline());
 
         Task savedTask = taskRepository.save(task);
         log.debug("Задача создана с ID: {}", savedTask.getId());
@@ -112,6 +114,7 @@ public class TaskService {
         task.setDescription(request.getDescription());
         task.setCompleted(request.getIsCompleted());
         task.setPriority(request.getPriority());
+        task.setDeadline(request.getDeadline());
 
         Task updatedTask = taskRepository.save(task);
         return mapToDTO(updatedTask);
