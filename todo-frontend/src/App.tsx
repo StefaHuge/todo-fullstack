@@ -515,7 +515,7 @@ function App() {
                                 className="p-2 pr-9 border rounded-lg bg-white text-sm text-gray-500"
                                 title="Дедлайн (опционально)"
                             />
-                            {!newDeadline && (
+                            {!editDeadline && (
                                 <span className="absolute left-3 top-1/2
                       -translate-y-1/2 text-sm text-gray-400
                       pointer-events-none sm:hidden">
