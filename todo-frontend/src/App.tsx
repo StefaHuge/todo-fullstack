@@ -437,9 +437,16 @@ function App() {
                     setNewDeadline(e.target.value)}
                 className="w-full min-w-0 p-3 pr-10 bg-white rounded-lg
                 shadow border-0 text-sm text-gray-500 focus:outline-none
-                focus:ring-2 focus:ring-blue-200"
+                focus:ring-2 focus:ring-blue-200 [color-scheme:light]"
                 title="Дедлайн (опционально)"
             />
+                  {!newDeadline && (
+                      <span className="absolute left-3 top-1/2
+                      -translate-y-1/2 text-sm text-gray-400
+                      pointer-events-none">
+                        Дедлайн
+                      </span>
+                  )}
                   {newDeadline && (
                       <button
                           type="button"
@@ -452,7 +459,7 @@ function App() {
                           -translate-y-1/2 w-6 h-6 rounded-full
                           bg-gray-200 hover:bg-gray-300 text-gray-600
                           flex items-center justify-center text-xs
-                          transition-colors"
+                          transition-colors z-10"
                           aria-label="Очистить дату"
                           title="Очистить"
                       >
@@ -508,6 +515,13 @@ function App() {
                                 className="p-2 pr-9 border rounded-lg bg-white text-sm text-gray-500"
                                 title="Дедлайн (опционально)"
                             />
+                            {!newDeadline && (
+                                <span className="absolute left-3 top-1/2
+                      -translate-y-1/2 text-sm text-gray-400
+                      pointer-events-none">
+                        Дедлайн
+                      </span>
+                            )}
                             {editDeadline && (
                                 <button
                                     type="button"
