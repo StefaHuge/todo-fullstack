@@ -143,6 +143,7 @@ function App() {
   const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -158,6 +159,12 @@ function App() {
       el.style.height = `${el.scrollHeight}px`;
     }
   }, [newTask]);
+
+  useEffect(() => {
+    if (showAddForm) {
+      textareaRef.current?.focus();
+    }
+  }, [showAddForm]);
 
   const handleError = (err: unknown) => {
     if (err instanceof Error) {
@@ -230,6 +237,7 @@ function App() {
       setNewTask('');
       setNewPriority('MEDIUM');
       setNewDeadline('');
+      setShowAddForm(false);
     } catch (err: unknown) {
       handleError(err);
     }
@@ -388,7 +396,20 @@ function App() {
 
           {error && <p className="text-red-500 mb-4">{error}</p>}
 
-          <form onSubmit={handleCreate} className="flex flex-col gap-2 mb-6">
+          {showAddForm && (
+              <div className="relative mb-6">
+                <button
+                    type="button"
+                    onClick={() => setShowAddForm(false)}
+                    className="absolute -top-2 -right-2 z-10 w-7 h-7
+                    rounded-full bg-gray-200 hover:bg-gray-300
+                    text-gray-600 flex items-center justify-center
+                    text-sm shadow-sm transition-colors"
+                    aria-label="Закрыть"
+                >
+                  ✕
+                </button>
+          <form onSubmit={handleCreate} className="flex flex-col gap-2">
             <textarea
                 ref={textareaRef}
                 placeholder="Новая задача..."
@@ -419,14 +440,17 @@ function App() {
                  focus:ring-blue-200"
                 title="Дедлайн (опционально)"
             />
-            <button type="submit"
-                    className="w-full min-w-0 bg-emerald-500 text-white
+            <button
+                type="submit"
+                className="w-full min-w-0 bg-emerald-500 text-white
             px-6 py-3 rounded-lg font-medium hover:bg-emerald-600
             shadow-sm hover:shadow-md transition-all">
               Добавить
             </button>
               </div>
           </form>
+              </div>
+            )}
 
           <ul className="space-y-2">
             {filteredTasks.map((task) => (
@@ -644,6 +668,21 @@ function App() {
             ))}
           </ul>
         </div>
+        <button
+            onClick={() => setShowAddForm((v) => !v)}
+            className={`fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full 
+            shadow-lg flex items-center justify-center text-2xl 
+            transition-all duration-200 ${
+              showAddForm
+              ? 'bg-gray-400 hover:bg-gray-500 text-white rotate-45' 
+                  : 'bg-emerald-500 hover:bg-emerald-600 text-white ' +
+                  'hover:scale-105' 
+            }`}
+            aria-label={showAddForm ? 'Закрыть' : 'Добавить задачу'}
+                title={showAddForm ? 'Закрыть' : 'Добавить задачу'}
+        >
+          +
+        </button>
       </div>
   );
 }
