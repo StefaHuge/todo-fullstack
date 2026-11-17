@@ -443,7 +443,7 @@ function App() {
                   {!newDeadline && (
                       <span className="absolute left-3 top-1/2
                       -translate-y-1/2 text-sm text-gray-400
-                      pointer-events-none">
+                      pointer-events-none sm:hidden">
                         Дедлайн
                       </span>
                   )}
@@ -518,7 +518,7 @@ function App() {
                             {!newDeadline && (
                                 <span className="absolute left-3 top-1/2
                       -translate-y-1/2 text-sm text-gray-400
-                      pointer-events-none">
+                      pointer-events-none sm:hidden">
                         Дедлайн
                       </span>
                             )}
