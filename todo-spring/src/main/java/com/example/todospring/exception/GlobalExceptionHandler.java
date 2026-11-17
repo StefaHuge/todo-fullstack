@@ -3,6 +3,7 @@ package com.example.todospring.exception;
 import com.example.todospring.service.TaskNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -46,6 +47,9 @@ public class GlobalExceptionHandler {
             errors.put(fieldName, errorMessage);
         });
 
+        log.warn("Ошибка валидации: {} (path: {})",
+                errors, request.getRequestURI());
+
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
@@ -56,11 +60,47 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex, HttpServletRequest request) {
+
+        log.error("Нарушение целостности данных (path: {})",
+                request.getRequestURI(), ex);
+
+        String userMessage = "Нарушение целостности данных";
+        String cause = ex.getMostSpecificCause().getMessage();
+
+        if (cause != null) {
+            String lower = cause.toLowerCase();
+            if (lower.contains("value too long")) {
+                userMessage = "Слишком длинный текст - превышено " +
+                        "допустимое количество символов";
+            } else if (lower.contains("not-null") || lower.contains(
+                    "null value")) {
+                userMessage = "Обязательное поле не может быть пустым";
+            } else if (lower.contains("duplicate") || lower.contains(
+                    "unique")) {
+                userMessage = "Такая запись уже существует";
+            } else if (lower.contains("foreign key")) {
+                userMessage = "Связанная запись не найдена";
+            }
+        }
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .message(userMessage)
+                .path(request.getRequestURI())
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(
             Exception ex, HttpServletRequest request) {
 
-        log.error("Внутренняя ошибка сервера", ex);
+        log.error("Внутренняя ошибка сервера (path: {})",
+                request.getRequestURI(), ex);
 
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
@@ -75,6 +115,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(
             IllegalArgumentException ex, HttpServletRequest request) {
+
+        log.warn("Невалидный аргумент: {} (path: {})",
+                ex.getMessage(), request.getRequestURI());
+
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
@@ -87,6 +131,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleBadJson(
             HttpMessageNotReadableException ex, HttpServletRequest request) {
+
+        log.warn("Невалидный JSON в запросе: {} (path: {})",
+                ex.getMostSpecificCause().getMessage(),
+                request.getRequestURI());
+
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
@@ -99,6 +148,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(
             AccessDeniedException ex, HttpServletRequest request) {
+
+        log.warn("Доступ запрещён: {} (path: {})",
+                ex.getMessage(), request.getRequestURI());
+
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.FORBIDDEN.value())

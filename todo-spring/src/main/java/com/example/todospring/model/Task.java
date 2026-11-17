@@ -43,7 +43,7 @@ public class Task {
     private Long userTaskNumber;
 
     @NotBlank(message = "Описание задачи не может быть пустым")
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
 
     @Column(name = "is_completed")

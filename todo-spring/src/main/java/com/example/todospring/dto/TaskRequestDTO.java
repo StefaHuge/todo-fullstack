@@ -4,6 +4,7 @@ import com.example.todospring.model.Task.Priority;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -16,6 +17,7 @@ import java.time.LocalDateTime;
 public class TaskRequestDTO {
 
     @NotBlank(message = "Описание задачи обязательно")
+    @Size(max = 5000, message = "Описание не должно превышать 5000 символов")
     private String description;
 
     @JsonProperty("isCompleted")

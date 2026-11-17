@@ -154,22 +154,22 @@ function App() {
   }, [token]);
 
   useEffect(() => {
-    const el = textareaRef.current;
-    if (el) {
-      const scrollTop = el.scrollTop;
+    if (CSS.supports('field-sizing', 'content')) return;
+    const grow = (
+        el: HTMLTextAreaElement | null) => {
+      if (!el) return;
       el.style.height = 'auto';
       el.style.height = `${el.scrollHeight}px`;
-      el.scrollTop = scrollTop;
-    }
+    };
+    grow(textareaRef.current);
   }, [newTask]);
 
   useEffect(() => {
+    if (CSS.supports('field-sizing', 'content')) return;
     const el = editTextareaRef.current;
     if (el) {
-      const scrollTop = el.scrollTop;
       el.style.height = 'auto';
       el.style.height = `${el.scrollHeight}px`;
-      el.scrollTop = scrollTop;
     }
   }, [editDescription, editingTask]);
 
@@ -431,9 +431,10 @@ function App() {
               (e) =>
                   setNewTask(e.target.value)}
                 rows={3}
-                className="w-full p-3 bg-white rounded-lg shadow resize-none
-                overflow-hidden border-0 focus:outline-none focus:ring-2
-                focus:ring-blue-200 transition-shadow"
+                className="w-full p-3 bg-white rounded-lg shadow
+                resize-none overflow-hidden border-0 focus:outline-none
+                focus:ring-2 focus:ring-blue-200 transition-shadow
+                [field-sizing:content]"
             />
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
 
@@ -514,7 +515,8 @@ function App() {
                             className="w-full p-3 bg-white rounded-lg
                             shadow resize-none overflow-hidden border-0
                             focus:outline-none focus:ring-2
-                            focus:ring-blue-200 transtion-shadow"
+                            focus:ring-blue-200 transtion-shadow
+                            [field-sizing:content]"
                         />
 
                         <div className="grid grid-cols-1 sm:grid-cols-2
