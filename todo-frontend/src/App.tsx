@@ -491,28 +491,37 @@ function App() {
                       <div className="flex flex-col gap-2" onClick={
                         (e) =>
                             e.stopPropagation()}>
-                        <input
-                            type="text"
+                        <textarea
                             value={editDescription}
                             onChange={
                           (e) =>
                                 setEditDescription(e.target.value)}
-                            className="w-full p-2 border rounded-lg"
+                            rows={3}
+                            className="w-full p-3 bg-white rounded-lg
+                            shadow resize-none overflow-hidden border-0
+                            focus:outline-none focus:ring-2
+                            focus:ring-blue-200 transtion-shadow"
                         />
-                        <div className="flex flex-wrap gap-2">
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2
+                        gap-2">
 
                           <PrioritySelect value={editPriority}
                                           onChange={setEditPriority}
-                                          size="sm"
-                                          className="min-w-[160px]"
+                                          className="w-full min-w-0"
                           />
 
                           <div className="relative">
                             <input
                                 type="datetime-local"
                                 value={editDeadline}
-                                onChange={(e) => setEditDeadline(e.target.value)}
-                                className="p-2 pr-9 border rounded-lg bg-white text-sm text-gray-500"
+                                onChange={(e) =>
+                                    setEditDeadline(e.target.value)}
+                                className="w-full min-w-0 p-3 pr-10
+                                bg-white rounded-lg shadow border-0
+                                text-sm text-gray-700
+                                focus:outline-none focus:ring-2
+                                focus:ring-blue-200 [color-scheme:light]"
                                 title="Дедлайн (опционально)"
                             />
                             {!editDeadline && (
@@ -530,7 +539,12 @@ function App() {
                                       e.stopPropagation();
                                       setEditDeadline('');
                                     }}
-                                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 flex items-center justify-center text-[10px] transition-colors"
+                                    className="absolute right-2 top-1/2
+                                    -translate-y-1/2 w-6 h-6 rounded-full
+                                    bg-gray-200 hover:bg-gray-300
+                                    text-gray-600 flex items-center
+                                    justify-center text-xs transition-colors
+                                    z-10"
                                     aria-label="Очистить дату"
                                     title="Очистить"
                                 >
@@ -538,21 +552,25 @@ function App() {
                                 </button>
                             )}
                           </div>
+                        </div>
+                        <div className="flex gap-2">
                         <button
                             onClick={handleEditSave}
-                            className="px-3 py-2 rounded
-                            bg-green-600 text-white
-                            hover:bg-green-700"
+                            className="flex-1 bg-emerald-500 text-white
+                            px-6 py-3 rounded-lg font-medium
+                            hover:bg-emerald-600 shadow-sm hover:shadow-md
+                            transition-all"
                         >
-                          ✓
+                          Сохранить
                         </button>
                         <button
                             onClick={handleEditCancel}
-                            className="px-3 py-2 rounded
-                            bg-gray-300 text-gray-700
-                            hover:bg-gray-400"
+                            className="flex-1 bg-white text-gray-600
+                            px-6 py-3 rounded-lg font-medium
+                            hover:bg-gray-50 shadow-sm hover:shadow-md
+                            transition-all"
                         >
-                          ✕
+                          Отмена
                         </button>
                           </div>
                         </div>
