@@ -142,6 +142,7 @@ function App() {
   const [editDeadline, setEditDeadline] = useState<string>('');
   const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -159,6 +160,14 @@ function App() {
       el.style.height = `${el.scrollHeight}px`;
     }
   }, [newTask]);
+
+  useEffect(() => {
+    const el = editTextareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    }
+  }, [editDescription, editingTask]);
 
   useEffect(() => {
     if (showAddForm) {
@@ -492,6 +501,7 @@ function App() {
                         (e) =>
                             e.stopPropagation()}>
                         <textarea
+                            ref={editTextareaRef}
                             value={editDescription}
                             onChange={
                           (e) =>
