@@ -156,16 +156,20 @@ function App() {
   useEffect(() => {
     const el = textareaRef.current;
     if (el) {
+      const scrollTop = el.scrollTop;
       el.style.height = 'auto';
       el.style.height = `${el.scrollHeight}px`;
+      el.scrollTop = scrollTop;
     }
   }, [newTask]);
 
   useEffect(() => {
     const el = editTextareaRef.current;
     if (el) {
+      const scrollTop = el.scrollTop;
       el.style.height = 'auto';
       el.style.height = `${el.scrollHeight}px`;
+      el.scrollTop = scrollTop;
     }
   }, [editDescription, editingTask]);
 
@@ -592,7 +596,8 @@ function App() {
                   </span>
 
                             <div className="flex-1">
-                  <span className={`block break-words cursor-pointer ${
+                  <span className={`block break-words whitespace-pre-wrap
+                  cursor-pointer ${
                     task.isCompleted ? 'line-through text-gray-400' : ''
                   }`}
                   onClick={(e) => {
