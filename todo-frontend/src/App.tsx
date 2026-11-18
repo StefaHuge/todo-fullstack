@@ -483,9 +483,9 @@ function App() {
                 </div>
             <button
                 type="submit"
-                className="w-full min-w-0 bg-emerald-500 text-white
-            px-6 py-3 rounded-lg font-medium hover:bg-emerald-600
-            shadow-sm hover:shadow-md transition-all">
+                className="w-full min-w-0 bg-[#B4D896] text-[#344E41]
+            px-6 py-3 rounded-lg font-semibold hover:bg-[#A4C886]
+            active:bg-[#94B876] shadow-sm hover:shadow-md transition-all">
               Добавить
             </button>
               </div>
@@ -572,9 +572,10 @@ function App() {
                         <div className="flex gap-2">
                         <button
                             onClick={handleEditSave}
-                            className="flex-1 bg-emerald-500 text-white
-                            px-6 py-3 rounded-lg font-medium
-                            hover:bg-emerald-600 shadow-sm hover:shadow-md
+                            className="flex-1 bg-[#B4D896]
+                            text-[#344E41] px-6 py-3 rounded-lg
+                            font-semibold hover:bg-[#A4C886]
+                            active:bg-[#94B876] shadow-sm hover:shadow-md
                             transition-all"
                         >
                           Сохранить
@@ -706,7 +707,9 @@ function App() {
                       className={`text-sm px-2 py-1 rounded shadow-md ${
                           task.isCompleted
                               ? 'bg-gray-200 text-gray-600 ' 
-                              : 'bg-green-100 text-green-700 '
+                              : 'bg-[#B4D896] text-[#2D4A2D] ' +
+                              'hover:bg-[#A4C886]' +
+                              'active:bg-[#94B876] '
                       }`}
                       title={task.isCompleted ? 'Вернуть в работу' :
                    'Отметить выполненной'}
@@ -759,7 +762,8 @@ function App() {
             transition-all duration-200 ${
               showAddForm
               ? 'bg-gray-400 hover:bg-gray-500 text-white rotate-45' 
-                  : 'bg-emerald-500 hover:bg-emerald-600 text-white ' +
+                  : 'bg-[#B4D896] hover:bg-[#A4C886] ' +
+                  'active:bg-[#94B876] text-[#344E41] ' +
                   'hover:scale-105' 
             }`}
             aria-label={showAddForm ? 'Закрыть' : 'Добавить задачу'}
