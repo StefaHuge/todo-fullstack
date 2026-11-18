@@ -1,5 +1,5 @@
 import {useEffect, useState, type SubmitEvent, useMemo, useRef} from "react";
-import {login, getTasks, createTask, toggleTask, deleteTask, type Task, register, updateTask} from "./api";
+import {login, getTasks, createTask, toggleTask, deleteTask, type Task, register, updateTask, logout as apiLogout, isLoggedIn } from "./api";
 
 type Priority = 'HIGH' | 'MEDIUM' | 'LOW';
 
@@ -122,8 +122,7 @@ function PrioritySelect({
 }
 
 function App() {
-  const [token, setToken] = useState<string | null>(localStorage
-      .getItem('token'));
+  const [loggedIn, setLoggedIn] = useState<boolean>(isLoggedIn());
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -147,11 +146,21 @@ function App() {
   const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
-    if (token) {
-      getTasks(token).then(setTasks).catch(() => setError(
-          'Сессия истекла'));
+    if (loggedIn) {
+      getTasks().then(setTasks).catch(() => setError(
+          'Не удалось загрузить задачи'));
     }
-  }, [token]);
+  }, [loggedIn]);
+
+  useEffect(() => {
+    const onForcedLogout = () => {
+      setLoggedIn(false);
+      setTasks([]);
+      setError('Сессия истекла - войдите снова');
+    };
+    window.addEventListener('auth:logout', onForcedLogout);
+    return () => window.removeEventListener('auth:logout', onForcedLogout);
+  }, []);
 
   useEffect(() => {
     if (CSS.supports('field-sizing', 'content')) return;
@@ -203,9 +212,8 @@ function App() {
       e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      const newToken = await register(email, password);
-      localStorage.setItem('token', newToken);
-      setToken(newToken);
+      await register(email, password);
+      setLoggedIn(true)
       setError('');
     } catch (err: unknown) {
       handleError(err);
@@ -217,9 +225,8 @@ function App() {
   ) => {
     e.preventDefault();
     try {
-      const newToken = await login(email, password);
-      localStorage.setItem('token', newToken);
-      setToken(newToken);
+      await login(email, password);
+      setLoggedIn(true);
       setError('');
     } catch (err: unknown) {
       handleError(err);
@@ -238,10 +245,9 @@ function App() {
       e: SubmitEvent<HTMLFormElement>
   ) => {
     e.preventDefault();
-    if (!newTask.trim() || !token) return;
+    if (!newTask.trim() || !loggedIn) return;
     try {
       const task = await createTask(
-          token,
           newTask,
           newPriority,
           newDeadline ? newDeadline : null
@@ -257,9 +263,9 @@ function App() {
   };
 
   const handleToggle = async (task: Task) => {
-    if (!token) return;
+    if (!loggedIn) return;
     try {
-      const updated = await toggleTask(token, task);
+      const updated = await toggleTask(task);
       setTasks(tasks.map((t) => (t.id === updated.id ? updated : t)));
     } catch (err: unknown) {
       handleError(err);
@@ -267,19 +273,19 @@ function App() {
   };
 
   const handleDelete = async (taskId: number) => {
-    if (!token) return;
+    if (!loggedIn) return;
     try {
-      await deleteTask(token, taskId);
-      const updatedTasks = await getTasks(token);
+      await deleteTask(taskId);
+      const updatedTasks = await getTasks();
       setTasks(updatedTasks);
     } catch (err: unknown) {
       handleError(err);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
+  const handleLogout = async () => {
+    await apiLogout();
+    setLoggedIn(false)
     setTasks([]);
   };
 
@@ -299,10 +305,9 @@ function App() {
   };
 
   const handleEditSave = async () => {
-    if (!token || !editingTask || !editDescription.trim()) return;
+    if (!loggedIn || !editingTask || !editDescription.trim()) return;
     try {
       const updated = await updateTask(
-          token,
           editingTask.id,
           editDescription,
           editPriority,
@@ -319,7 +324,7 @@ function App() {
     }
   };
 
-  if (!token) {
+  if (!loggedIn) {
     return (
         <div className="min-h-screen bg-gray-100 flex items-center
         justify-center p-4">

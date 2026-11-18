@@ -2,6 +2,7 @@ package com.example.todospring.config;
 
 import com.example.todospring.security.JwtAuthFilter;
 import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -48,6 +49,14 @@ public class SecurityConfig {
                         session
                                 -> session.sessionCreationPolicy(
                                         SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex ->
+                        ex.authenticationEntryPoint(
+                                (request,
+                                 response,
+                                 authException) ->
+                                        response.sendError(
+                                                HttpServletResponse.SC_UNAUTHORIZED,
+                                                "Unauthorized")))
                 .addFilterBefore(jwtAuthFilter,
                         UsernamePasswordAuthenticationFilter.class);
         System.out.println("✅ CSRF disabled: " + http);
