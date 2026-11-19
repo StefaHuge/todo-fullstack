@@ -49,6 +49,7 @@ todo-frontend/.env
 todo-frontend/.env.local
 *.env
 !*.env.example
+.env
 
 *.pem
 *.key

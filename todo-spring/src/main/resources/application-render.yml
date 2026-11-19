@@ -30,4 +30,7 @@ management:
 
 logging:
   level:
+    com.example.todospring: INFO
     org.springframework.security: DEBUG
+    org.hibernate.sql: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE

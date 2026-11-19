@@ -27,7 +27,6 @@ services:
       SPRING_DATASOURCE_PASSWORD: postgres
 
       SPRING_PROFILES_ACTIVE: "default"
-      JWT_SECRET: "mySuperSecretKeyThatIsAtLeast256BitsLongForHS256Algorithm!"
 
     depends_on:
       db:
