@@ -1,5 +1,15 @@
-import {useEffect, useState, type SubmitEvent, useMemo, useRef} from "react";
+import {useEffect, useState, type SubmitEvent, useMemo, useRef, useCallback} from "react";
 import {login, getTasks, createTask, toggleTask, deleteTask, type Task, register, updateTask, logout as apiLogout, isLoggedIn } from "./api";
+
+function Spinner({ className = '' }: { className?: string }) {
+    return (
+      <span
+          className={`inline-block w-4 h-4 border-2 border-current 
+          border-t-transparent rounded-full animate-spin ${className}`}
+          aria-hidden="true"
+      />
+    );
+}
 
 type Priority = 'HIGH' | 'MEDIUM' | 'LOW';
 
@@ -121,6 +131,70 @@ function PrioritySelect({
   );
 }
 
+const PULL_THRESHOLD = 70;
+
+function usePullToRefresh(onRefresh: () => Promise<unknown>) {
+    const [distance, setDistance] = useState(0);
+    const [refreshing, setRefreshing] = useState(false);
+    const startY = useRef<number | null>(null);
+    const distRef = useRef(0);
+    const busyRef = useRef(false);
+    const refreshRef = useRef(onRefresh);
+
+  useEffect(() => {
+    refreshRef.current = onRefresh;
+  }, [onRefresh]);
+
+  useEffect(() => {
+    const setDist = (v: number) => {
+      distRef.current = v;
+      setDistance(v); };
+
+    const onStart = (e: TouchEvent) => {
+      if (window.scrollY <= 0 && !busyRef.current)
+        startY.current = e.touches[0].clientY;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (startY.current === null) return;
+      const dy = e.touches[0].clientY - startY.current;
+      if (dy > 0 && window.scrollY <= 0) {
+        if (e.cancelable) e.preventDefault();
+        setDist(Math.min(dy * 0.5, 110));
+      } else {
+        startY.current = null;
+        setDist(0);
+      }
+    };
+    const onEnd = () => {
+      if (startY.current === null) return;
+      startY.current = null;
+      if (distRef.current >= PULL_THRESHOLD && !busyRef.current) {
+        busyRef.current = true;
+        setRefreshing(true);
+        setDist(PULL_THRESHOLD);
+        Promise.resolve(refreshRef.current()).finally(() => {
+          busyRef.current = false;
+          setRefreshing(false);
+          setDist(0);
+        });
+      } else {
+        setDist(0);
+      }
+    };
+
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    return () => {
+      document.removeEventListener('touchstart', onStart);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+    };
+  }, []);
+
+  return { distance, refreshing};
+}
+
 function App() {
   const [loggedIn, setLoggedIn] = useState<boolean>(isLoggedIn());
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -144,12 +218,53 @@ function App() {
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [slowHint, setSlowHint] = useState(false);
+  const [tasksLoading, setTasksLoading] = useState<boolean>(isLoggedIn());
+  const [creating, setCreating] = useState(false);
+  const [busyTasks, setBusyTasks] = useState<Set<number>>(new Set());
+
+  const setBusy = (id: number, on: boolean) =>
+      setBusyTasks((prev) => {
+        const next = new Set(prev);
+        if (on) next.add(id); else next.delete(id);
+        return next;
+      });
+
+  const loadTasks = useCallback(async () => {
+    try {
+      const data = await getTasks();
+      setTasks(data);
+      setError('');
+    } catch {
+      setError('Не удалось загрузить задачи');
+    } finally {
+      setTasksLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (loggedIn) {
-      getTasks().then(setTasks).catch(() => setError(
-          'Не удалось загрузить задачи'));
-    }
+    if (!authLoading) return;
+    const t = setTimeout(() => setSlowHint(true), 6000);
+    return () => clearTimeout(t);
+  }, [authLoading]);
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    let cancelled = false;
+    getTasks()
+        .then((data) => {
+          if (cancelled) return;
+          setTasks(data);
+          setError('');
+        })
+        .catch(() => {
+          if (!cancelled) setError('Не удалось загрузить задачи');
+        })
+        .finally(() => {
+          if (!cancelled) setTasksLoading(false);
+        });
+    return () => { cancelled = true; };
   }, [loggedIn]);
 
   useEffect(() => {
@@ -211,12 +326,18 @@ function App() {
   const handleRegister = async (
       e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setAuthLoading(true);
+    setSlowHint(false);
+    setError('');
     try {
       await register(email, password);
+      setTasksLoading(true);
       setLoggedIn(true)
-      setError('');
     } catch (err: unknown) {
       handleError(err);
+    } finally {
+      setAuthLoading(false);
+      setSlowHint(false);
     }
   };
 
@@ -224,12 +345,18 @@ function App() {
       e: SubmitEvent<HTMLFormElement>
   ) => {
     e.preventDefault();
+    setAuthLoading(true);
+    setSlowHint(false);
+    setError('');
     try {
       await login(email, password);
+      setTasksLoading(true);
       setLoggedIn(true);
-      setError('');
     } catch (err: unknown) {
       handleError(err);
+    } finally {
+      setAuthLoading(false);
+      setSlowHint(false);
     }
   };
 
@@ -245,7 +372,8 @@ function App() {
       e: SubmitEvent<HTMLFormElement>
   ) => {
     e.preventDefault();
-    if (!newTask.trim() || !loggedIn) return;
+    if (!newTask.trim() || !loggedIn || creating) return;
+    setCreating(true);
     try {
       const task = await createTask(
           newTask,
@@ -259,27 +387,35 @@ function App() {
       setShowAddForm(false);
     } catch (err: unknown) {
       handleError(err);
+    } finally {
+      setCreating(false);
     }
   };
 
   const handleToggle = async (task: Task) => {
-    if (!loggedIn) return;
+    if (!loggedIn || busyTasks.has(task.id)) return;
+    setBusy(task.id, true);
     try {
       const updated = await toggleTask(task);
       setTasks(tasks.map((t) => (t.id === updated.id ? updated : t)));
     } catch (err: unknown) {
       handleError(err);
+    } finally {
+      setBusy(task.id, false);
     }
   };
 
   const handleDelete = async (taskId: number) => {
-    if (!loggedIn) return;
+    if (!loggedIn || busyTasks.has(taskId)) return;
+    setBusy(taskId, true);
     try {
       await deleteTask(taskId);
-      const updatedTasks = await getTasks();
-      setTasks(updatedTasks);
+      setTasksLoading(true);
+      await loadTasks();
     } catch (err: unknown) {
       handleError(err);
+    } finally {
+      setBusy(taskId, false);
     }
   };
 
@@ -305,7 +441,9 @@ function App() {
   };
 
   const handleEditSave = async () => {
-    if (!loggedIn || !editingTask || !editDescription.trim()) return;
+    if (!loggedIn || !editingTask || !editDescription.trim()
+        || busyTasks.has(editingTask.id)) return;
+    setBusy(editingTask.id, true);
     try {
       const updated = await updateTask(
           editingTask.id,
@@ -321,47 +459,131 @@ function App() {
       setEditDeadline('');
     } catch (err: unknown) {
       handleError(err);
+    } finally {
+      setBusy(editingTask.id, false);
     }
   };
 
+  const ptr = usePullToRefresh(async () => {
+    if (!loggedIn) {
+        window.location.reload();
+        return;
+    }
+    setTasksLoading(true);
+      await loadTasks();
+  });
+
   if (!loggedIn) {
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center
+        <div className="min-h-screen bg-gray-100 flex flex-col items-center
         justify-center p-4">
+            <div className="w-full max-w-sm flex items-center
+            justify-center gap-2
+            overflow-hidden text-sm text-[#5F7F4F]"
+                 style={{ height: ptr.distance, transition: 'height 0.15s' }}
+                 role="status"
+                 aria-live="polite"
+            >
+                {ptr.refreshing ? (
+                    <><Spinner className="text-[#5F7F4F]" />
+                    Перезагружаем...</>
+                ) : ptr.distance >= PULL_THRESHOLD ? (
+                    'Отпусти, чтобы перезагрузить'
+                ) : ptr.distance > 0 ? (
+                    'Тяни ещё...'
+                ) : null}
+            </div>
           <form onSubmit={isRegisterMode ? handleRegister : handleLogin}
                 className="bg-white p-8 rounded-xl
-          shadow-md w-full max-w-sm">
-            <h1 className="text-2xl font-bold mb-6 text-center">ToDO App</h1>
+          shadow-md w-full max-w-sm"
+                aria-label={isRegisterMode ? 'Регистрация' : 'Вход'}
+          >
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center
+            justify-center rounded-full bg-[#E7F0DC] text-[#344E41]
+            shadow-sm">
+              <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+
+            <h1 className="text-2xl font-bold mb-1 text-center text-[#344E41]">
+              ToDO App</h1>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              {isRegisterMode ? 'Создай аккаунт, чтобы начать'
+              : 'Войдите, чтобы продолжить'}
+            </p>
             {error && <p className="text-red-500 mb-4 text-sm">{error}</p>}
             <input
             type="email"
+            disabled={authLoading}
             placeholder="Email"
             value={email}
             onChange={(e) =>
                 setEmail(e.target.value)}
-            className="w-full p-3 border rounded-lg mb-3"
+            className="w-full p-3 mb-3 bg-[#F7FAF3] focus:bg-white rounded-lg shadow border-0
+           text-[#344E41] placeholder-gray-400 focus:outline-none
+           focus:ring-2 focus:ring-blue-200 transition-shadow
+           disabled:opacity-60"
             required
             />
             <input
             type="password"
+            disabled={authLoading}
             placeholder="Пароль"
             value={password}
             onChange={(e) =>
                 setPassword(e.target.value)}
-            className="w-full p-3 border rounded-lg mb-4"
+            className="w-full p-3 mb-4 bg-[#F7FAF3] focus:bg-white rounded-lg shadow border-0
+           text-[#344E41] placeholder-gray-400 focus:outline-none
+           focus:ring-2 focus:ring-blue-200 transition-shadow
+           disabled:opacity-60"
             required
             />
             <button
                 type="submit"
-                className="w-full bg-blue-600 text-white p-3 rounded-lg
-                font-semibold hover:bg-blue-700"
+                disabled={authLoading}
+                className="w-full bg-[#3E6B8A] text-white p-3 rounded-lg
+                font-semibold hover:bg-[#355C77] active:bg-[#2D4F67]
+                 shadow-sm hover:shadow-md transition-all disabled:opacity-70
+                disabled:cursor-not-allowed flex items-center
+                justify-center gap-2"
             >
-              {isRegisterMode ? 'Зарегистрироваться' : 'Войти'}
+              {authLoading && <Spinner />}
+              {authLoading
+                  ? (isRegisterMode ? 'Регистрируем...' : 'Входим...')
+                  : (isRegisterMode ? 'Зарегистрироваться' : 'Войти')}
             </button>
+            {slowHint && (
+                <>
+                    <p className="text-gray-400 text-xs mt-2 text-center">
+                        Сервер просыпается — это может занять некоторое время ☕
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="w-full mt-1 text-gray-400 text-xs
+                        hover:underline"
+                    >
+                        Зависло? Перезагрузить страницу
+                    </button>
+                </>
+            )}
             <button
             type="button"
+            disabled={authLoading}
             onClick={() => setIsRegisterMode(!isRegisterMode)}
-            className="w-full mt-3 text-blue-600 text-sm hover:underline"
+            className="w-full mt-3 text-[#4F6B3F] text-sm hover:text-[#344E41]
+           hover:underline transition-colors disabled:opacity-60"
             >
               {isRegisterMode ? 'Уже есть аккаунт? Войти' :
                   'Нет аккаунта? Зарегистрироваться'}
@@ -374,24 +596,41 @@ function App() {
   return (
       <div className="min-h-screen bg-gray-100 p-4">
         <div className="max-w-2xl mx-auto">
+          <div
+            className="flex items-center justify-center gap-2 overflow-hidden
+            text-sm text-gray-500"
+            style={{ height: ptr.distance, transition: 'height 0.15s' }}
+          >
+            {ptr.refreshing ? (
+                <><Spinner className="text-blue-600" /> Обновляем...</>
+            ) : ptr.distance >= PULL_THRESHOLD ? (
+                'Отпусти, чтобы обновить'
+            ) : ptr.distance > 0 ? (
+                'Тяни ещё...'
+            ) : null}
+          </div>
           <div className="flex flex-col sm:flex-row justify-between
           items-start sm:items-center gap-4 mb-6">
             <h1 className="text-2xl font-semibold text-gray-700">Мои задачи</h1>
             <div className="flex flex-wrap gap-2">
               <button
               onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                filter === 'all' ? 'bg-blue-600 text-white' : 
-                    'bg-white text-gray-700 hover:bg-gray-100'
+              className={`px-4 py-2 rounded-lg text-sm font-medium 
+              transition-colors ${
+                filter === 'all' 
+                    ? 'bg-[#3E6B8A] text-white shadow-sm hover:bg-[#355C77]' 
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
               }`}
               >
                 Все ({tasks.length})
               </button>
               <button
               onClick={() => setFilter('active')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                filter === 'active' ? 'bg-blue-600 text-white' : 
-                    'bg-white text-gray-700 hover:bg-gray-100'
+              className={`px-4 py-2 rounded-lg text-sm font-medium 
+              transition-colors ${
+                filter === 'active' 
+                    ? 'bg-[#3E6B8A] text-white shadow-sm hover:bg-[#355C77]' 
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
               }`}
               >
                 Активные ({tasks.filter((t) => !t.isCompleted)
@@ -399,14 +638,28 @@ function App() {
               </button>
               <button
                   onClick={() => setFilter('completed')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                    filter === 'completed' ? 'bg-blue-600 text-white' :
-                        'bg-white text-gray-700 hover:bg-gray-100'
+                  className={`px-4 py-2 rounded-lg text-sm font-medium 
+                  transition-colors ${
+                    filter === 'completed' 
+                        ? 'bg-[#3E6B8A] text-white shadow-sm hover:bg-[#355C77]' 
+                        : 'bg-white text-gray-700 hover:bg-gray-100'
                   }`}
               >
                 Выполненные ({tasks.filter((t) => t
                   .isCompleted).length})
               </button>
+                <button
+                    onClick={() => { setTasksLoading(true); void loadTasks(); }}
+                    disabled={tasksLoading}
+                    className="px-3 py-2 rounded-lg bg-white text-gray-700
+                  hover:bg-gray-100 disabled:opacity-50"
+                    title="Обновить"
+                >
+                <span className={tasksLoading ? 'inline-block animate-spin'
+                    : ''}>
+                  ⟳
+                </span>
+                </button>
             </div>
             <button onClick={handleLogout} className="text-red-600
             text-sm hover:underline self-end sm:self-auto">Выйти</button>
@@ -488,16 +741,31 @@ function App() {
                 </div>
             <button
                 type="submit"
+                disabled={creating}
                 className="w-full min-w-0 bg-[#B4D896] text-[#344E41]
             px-6 py-3 rounded-lg font-semibold hover:bg-[#A4C886]
-            active:bg-[#94B876] shadow-sm hover:shadow-md transition-all">
-              Добавить
+            active:bg-[#94B876] shadow-sm hover:shadow-md transition-all
+            disabled:opacity-60 disabled:cursor-not-allowed flex
+            items-center justify-center gap-2">
+              {creating ? <><Spinner /> Добавляем...</> : 'Добавить'}
             </button>
               </div>
           </form>
               </div>
             )}
 
+          {tasksLoading && tasks.length === 0 ? (
+                  <ul className="space-y-2">
+                    {[0, 1, 2].map((i) => (
+                        <li key={i} className="bg-white p-4 rounded-lg
+                        shadow animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-3/4
+                          mb-2" />
+                          <div className="h-3 bg-gray-100 rounded w-1/4" />
+                        </li>
+                    ))}
+                  </ul>
+          ) : (
           <ul className="space-y-2">
             {filteredTasks.map((task) => (
                 <li key={task.id}
@@ -577,13 +845,15 @@ function App() {
                         <div className="flex gap-2">
                         <button
                             onClick={handleEditSave}
+                            disabled={busyTasks.has(task.id)}
                             className="flex-1 bg-[#B4D896]
                             text-[#344E41] px-6 py-3 rounded-lg
                             font-semibold hover:bg-[#A4C886]
                             active:bg-[#94B876] shadow-sm hover:shadow-md
-                            transition-all"
+                            transition-all disabled:opacity-60 flex
+                            items-center justify-center gap-2"
                         >
-                          Сохранить
+                          {busyTasks.has(task.id) ? <><Spinner /> Сохраняем...</> : 'Сохранить'}
                         </button>
                         <button
                             onClick={handleEditCancel}
@@ -698,8 +968,9 @@ function App() {
                     e.stopPropagation();
                     handleEditStart(task);
                   }}
+                  disabled={busyTasks.has(task.id)}
                   className="text-sm px-2 py-1 rounded bg-blue-100
-                  text-blue-700 hover:bg-blue-200 shadow-md"
+                  text-blue-700 hover:bg-blue-200 shadow-md disabled:opacity-50"
                   title="Редактировать"
                   >
                     ✎
@@ -709,7 +980,9 @@ function App() {
                         e.stopPropagation();
                         handleToggle(task);
                       }}
-                      className={`text-sm px-2 py-1 rounded shadow-md ${
+                      disabled={busyTasks.has(task.id)}
+                      className={`text-sm px-2 py-1 rounded shadow-md 
+                      disabled:opacity-50 ${
                           task.isCompleted
                               ? 'bg-gray-200 text-gray-600 ' 
                               : 'bg-[#B4D896] text-[#2D4A2D] ' +
@@ -719,15 +992,16 @@ function App() {
                       title={task.isCompleted ? 'Вернуть в работу' :
                    'Отметить выполненной'}
                   >
-                    {task.isCompleted ? '↺' : '✓'}
+                    {busyTasks.has(task.id) ? <Spinner /> : task.isCompleted ? '↺' : '✓'}
                   </button>
                   <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDelete(task.id);
                       }}
+                      disabled={busyTasks.has(task.id)}
                       className="text-sm px-2 py-1 rounded bg-red-100
-                      text-red-700 hover:bg-red-200 shadow-md"
+                      text-red-700 hover:bg-red-200 shadow-md disabled:opacity-50"
                       title="Удалить"
                   >
                     ✕
@@ -759,6 +1033,7 @@ function App() {
                 </li>
             ))}
           </ul>
+          )}
         </div>
         <button
             onClick={() => setShowAddForm((v) => !v)}
