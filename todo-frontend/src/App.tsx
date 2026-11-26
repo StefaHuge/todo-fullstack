@@ -1,6 +1,37 @@
 import {useEffect, useState, type SubmitEvent, useMemo, useRef, useCallback} from "react";
 import {login, getTasks, createTask, toggleTask, deleteTask, type Task, register, updateTask, logout as apiLogout, isLoggedIn } from "./api";
 
+const GUEST_KEY = 'guestTasks';
+
+function loadGuestTasks(): Task[] {
+    try {
+        const raw = localStorage.getItem(GUEST_KEY);
+        if (!raw) return [];
+        const parsed: unknown = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((t): t is Task =>
+        !!t && typeof t.id === 'number' && typeof t.description === 'string');
+    } catch {
+        return [];
+    }
+}
+
+function saveGuestTasks(tasks: Task[]) {
+    try {
+        localStorage.setItem(GUEST_KEY, JSON.stringify(tasks));
+    } catch {
+        /* ignore */
+    }
+}
+
+function clearGuestTasks() {
+    try {
+        localStorage.removeItem(GUEST_KEY)
+    } catch {
+        /* ignore */
+    }
+}
+
 function Spinner({ className = '' }: { className?: string }) {
     return (
       <span
@@ -200,7 +231,7 @@ function App() {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[]>(() => (isLoggedIn() ? [] : loadGuestTasks()));
   const [newTask, setNewTask] = useState('');
   const [newPriority, setNewPriority] = useState<'HIGH' | 'MEDIUM' | 'LOW'>
   ('MEDIUM');
@@ -223,6 +254,13 @@ function App() {
   const [tasksLoading, setTasksLoading] = useState<boolean>(isLoggedIn());
   const [creating, setCreating] = useState(false);
   const [busyTasks, setBusyTasks] = useState<Set<number>>(new Set());
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authNotice, setAuthNotice] = useState('');
+  const [guestPromtShown, setGuestPromtShown] = useState(false);
+  const [bannerHidden, setBannerHidden] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncDone, setSyncDone] = useState(0);
+  const [syncTotal, setSyncTotal] = useState(0);
 
   const setBusy = (id: number, on: boolean) =>
       setBusyTasks((prev) => {
@@ -242,6 +280,49 @@ function App() {
       setTasksLoading(false);
     }
   }, []);
+
+  const applyGuest = (next: Task[]) => {
+      setTasks(next);
+      saveGuestTasks(next);
+  };
+
+  const afterAuth = async () => {
+      setLoggedIn(true);
+      setTasksLoading(true);
+      setBannerHidden(false);
+      setGuestPromtShown(false);
+
+      const guest = loadGuestTasks();
+      if (guest.length > 0) {
+          setSyncing(true);
+          setSyncTotal(guest.length);
+          setSyncDone(0);
+          let remaining = guest;
+          try {
+              for (const t of guest) {
+                  const created = await createTask(t.description,
+                      t.priority, t.deadline);
+                  if (t.isCompleted) {
+                      await updateTask(created.id, created.description,
+                          created.priority, true, created.deadline);
+                  }
+                  remaining = remaining.filter((x) => x.id !== t.id);
+                  saveGuestTasks(remaining);
+                  setSyncDone((d) => d + 1);
+              }
+          } catch {
+              setSyncing(false);
+              await loadTasks();
+              throw new Error('Не все задачи перенесены. Остальные сохранены в браузере - войдите ещё раз.');
+          }
+          setSyncing(false);
+      }
+
+      clearGuestTasks();
+      setAuthOpen(false);
+      setAuthNotice('');
+      await loadTasks();
+  };
 
   useEffect(() => {
     if (!authLoading) return;
@@ -270,8 +351,11 @@ function App() {
   useEffect(() => {
     const onForcedLogout = () => {
       setLoggedIn(false);
-      setTasks([]);
-      setError('Сессия истекла - войдите снова');
+      setTasks(loadGuestTasks());
+      setTasksLoading(false);
+      setBannerHidden(false);
+      setAuthNotice('Сессия истекла - войдите снова.');
+      setAuthOpen(true);
     };
     window.addEventListener('auth:logout', onForcedLogout);
     return () => window.removeEventListener('auth:logout', onForcedLogout);
@@ -331,8 +415,7 @@ function App() {
     setError('');
     try {
       await register(email, password);
-      setTasksLoading(true);
-      setLoggedIn(true)
+      await afterAuth();
     } catch (err: unknown) {
       handleError(err);
     } finally {
@@ -350,8 +433,7 @@ function App() {
     setError('');
     try {
       await login(email, password);
-      setTasksLoading(true);
-      setLoggedIn(true);
+      await afterAuth();
     } catch (err: unknown) {
       handleError(err);
     } finally {
@@ -371,29 +453,65 @@ function App() {
   const handleCreate = async (
       e: SubmitEvent<HTMLFormElement>
   ) => {
-    e.preventDefault();
-    if (!newTask.trim() || !loggedIn || creating) return;
-    setCreating(true);
-    try {
-      const task = await createTask(
-          newTask,
-          newPriority,
-          newDeadline ? newDeadline : null
-      );
-      setTasks([...tasks, task]);
-      setNewTask('');
-      setNewPriority('MEDIUM');
-      setNewDeadline('');
-      setShowAddForm(false);
-    } catch (err: unknown) {
-      handleError(err);
-    } finally {
-      setCreating(false);
-    }
+      e.preventDefault();
+      if (!newTask.trim() || creating) return;
+
+      if (!loggedIn) {
+          const now = new Date().toISOString();
+          const task: Task = {
+              id: Math.min(0, ...tasks.map((t) => t.id)) - 1,
+              userTaskNumber: tasks.reduce((m, t) => Math.max(m,
+                  t.userTaskNumber || 0), 0) + 1,
+              description: newTask,
+              isCompleted: false,
+              priority: newPriority,
+              createdAt: now,
+              updatedAt: now,
+              deadline: newDeadline ? newDeadline : null,
+          };
+          applyGuest([...tasks, task]);
+          setNewTask('');
+          setNewPriority('MEDIUM');
+          setNewDeadline('');
+          setShowAddForm(false);
+          setBannerHidden(false);
+          if (!guestPromtShown) {
+              setGuestPromtShown(true);
+              setAuthNotice('Задача добавлена, но пока живёт только в этом ' +
+                  'браузере. Войдите или создайте аккаунт - и она ' +
+                  'сохранится навсегда.');
+              setAuthOpen(true);
+          }
+          return;
+      }
+
+      setCreating(true);
+      try {
+          const task = await createTask(
+              newTask,
+              newPriority,
+              newDeadline ? newDeadline : null
+          );
+          setTasks([...tasks, task]);
+          setNewTask('');
+          setNewPriority('MEDIUM');
+          setNewDeadline('');
+          setShowAddForm(false);
+      } catch (err: unknown) {
+          handleError(err);
+      } finally {
+          setCreating(false);
+      }
   };
 
   const handleToggle = async (task: Task) => {
-    if (!loggedIn || busyTasks.has(task.id)) return;
+    if (busyTasks.has(task.id)) return;
+    if (!loggedIn) {
+        applyGuest(tasks.map((t) => t.id === task.id
+            ? {...t, isCompleted: !t.isCompleted, updatedAt: new Date().toISOString()}
+            : t));
+        return;
+    }
     setBusy(task.id, true);
     try {
       const updated = await toggleTask(task);
@@ -406,7 +524,11 @@ function App() {
   };
 
   const handleDelete = async (taskId: number) => {
-    if (!loggedIn || busyTasks.has(taskId)) return;
+    if (busyTasks.has(taskId)) return;
+    if (!loggedIn) {
+        applyGuest(tasks.filter((t) => t.id !== taskId));
+        return;
+    }
     setBusy(taskId, true);
     try {
       await deleteTask(taskId);
@@ -422,7 +544,10 @@ function App() {
   const handleLogout = async () => {
     await apiLogout();
     setLoggedIn(false)
-    setTasks([]);
+    setTasks(loadGuestTasks());
+    setTasksLoading(false);
+    setBannerHidden(false);
+    setGuestPromtShown(false);
   };
 
   const handleEditStart = (task: Task) => {
@@ -441,8 +566,17 @@ function App() {
   };
 
   const handleEditSave = async () => {
-    if (!loggedIn || !editingTask || !editDescription.trim()
+    if (!editingTask || !editDescription.trim()
         || busyTasks.has(editingTask.id)) return;
+    if (!loggedIn) {
+        applyGuest(tasks.map((t) => t.id === editingTask.id
+            ? {...t, description: editDescription, priority: editPriority,
+                deadline: editDeadline ? editDeadline : null, updatedAt:
+            new Date().toISOString()}
+            : t));
+        handleEditCancel();
+        return;
+    }
     setBusy(editingTask.id, true);
     try {
       const updated = await updateTask(
@@ -466,135 +600,29 @@ function App() {
 
   const ptr = usePullToRefresh(async () => {
     if (!loggedIn) {
-        window.location.reload();
+        setTasksLoading(true);
+        await new Promise((r) => setTimeout(r, 320));
+        setTasks(loadGuestTasks());
+        setTasksLoading(false);
         return;
     }
     setTasksLoading(true);
       await loadTasks();
   });
 
-  if (!loggedIn) {
-    return (
-        <div className="min-h-screen bg-gray-100 flex flex-col items-center
-        justify-center p-4">
-            <div className="w-full max-w-sm flex items-center
-            justify-center gap-2
-            overflow-hidden text-sm text-[#5F7F4F]"
-                 style={{ height: ptr.distance, transition: 'height 0.15s' }}
-                 role="status"
-                 aria-live="polite"
-            >
-                {ptr.refreshing ? (
-                    <><Spinner className="text-[#5F7F4F]" />
-                    Перезагружаем...</>
-                ) : ptr.distance >= PULL_THRESHOLD ? (
-                    'Отпусти, чтобы перезагрузить'
-                ) : ptr.distance > 0 ? (
-                    'Тяни ещё...'
-                ) : null}
-            </div>
-          <form onSubmit={isRegisterMode ? handleRegister : handleLogin}
-                className="bg-white p-8 rounded-xl
-          shadow-md w-full max-w-sm"
-                aria-label={isRegisterMode ? 'Регистрация' : 'Вход'}
-          >
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center
-            justify-center rounded-full bg-[#E7F0DC] text-[#344E41]
-            shadow-sm">
-              <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-
-            <h1 className="text-2xl font-bold mb-1 text-center text-[#344E41]">
-              ToDO App</h1>
-            <p className="text-sm text-gray-500 text-center mb-6">
-              {isRegisterMode ? 'Создай аккаунт, чтобы начать'
-              : 'Войдите, чтобы продолжить'}
-            </p>
-            {error && <p className="text-red-500 mb-4 text-sm">{error}</p>}
-            <input
-            type="email"
-            disabled={authLoading}
-            placeholder="Email"
-            value={email}
-            onChange={(e) =>
-                setEmail(e.target.value)}
-            className="w-full p-3 mb-3 bg-[#F7FAF3] focus:bg-white rounded-lg shadow border-0
-           text-[#344E41] placeholder-gray-400 focus:outline-none
-           focus:ring-2 focus:ring-blue-200 transition-shadow
-           disabled:opacity-60"
-            required
-            />
-            <input
-            type="password"
-            disabled={authLoading}
-            placeholder="Пароль"
-            value={password}
-            onChange={(e) =>
-                setPassword(e.target.value)}
-            className="w-full p-3 mb-4 bg-[#F7FAF3] focus:bg-white rounded-lg shadow border-0
-           text-[#344E41] placeholder-gray-400 focus:outline-none
-           focus:ring-2 focus:ring-blue-200 transition-shadow
-           disabled:opacity-60"
-            required
-            />
-            <button
-                type="submit"
-                disabled={authLoading}
-                className="w-full bg-[#3E6B8A] text-white p-3 rounded-lg
-                font-semibold hover:bg-[#355C77] active:bg-[#2D4F67]
-                 shadow-sm hover:shadow-md transition-all disabled:opacity-70
-                disabled:cursor-not-allowed flex items-center
-                justify-center gap-2"
-            >
-              {authLoading && <Spinner />}
-              {authLoading
-                  ? (isRegisterMode ? 'Регистрируем...' : 'Входим...')
-                  : (isRegisterMode ? 'Зарегистрироваться' : 'Войти')}
-            </button>
-            {slowHint && (
-                <>
-                    <p className="text-gray-400 text-xs mt-2 text-center">
-                        Сервер просыпается — это может занять некоторое время ☕
-                    </p>
-                    <button
-                        type="button"
-                        onClick={() => window.location.reload()}
-                        className="w-full mt-1 text-gray-400 text-xs
-                        hover:underline"
-                    >
-                        Зависло? Перезагрузить страницу
-                    </button>
-                </>
-            )}
-            <button
-            type="button"
-            disabled={authLoading}
-            onClick={() => setIsRegisterMode(!isRegisterMode)}
-            className="w-full mt-3 text-[#4F6B3F] text-sm hover:text-[#344E41]
-           hover:underline transition-colors disabled:opacity-60"
-            >
-              {isRegisterMode ? 'Уже есть аккаунт? Войти' :
-                  'Нет аккаунта? Зарегистрироваться'}
-            </button>
-          </form>
-        </div>
-    );
-  }
 
   return (
       <div className="min-h-screen bg-gray-100 p-4">
+          <style>{`
+            @keyframes todoFade { from { opacity: 0 } to { opacity: 1} }
+            @keyframes todoPop { from { opacity: 0, transform: translateY(10px) scale(.97) } to { opacity: 1; transform: none } }
+            html, body { overscroll-behavior-y: contain; }
+            html { scrollbar-width: thin; scrollbar-color: #B4D896 #EEF2E9; }
+            ::-webkit-scrollbar { width: 10px }
+            ::-webkit-scrollbar-track { background: #EEF2E9 }
+            ::-webkit-scrollbar-thumb { background: #B4D896; border-radius: 8px; border: 2px solid #EEF2E9 }
+            ::-webkit-scrollbar-thumb:hover { background: #94B876 }
+          `}</style>
         <div className="max-w-2xl mx-auto">
           <div
             className="flex items-center justify-center gap-2 overflow-hidden
@@ -610,8 +638,14 @@ function App() {
             ) : null}
           </div>
           <div className="flex flex-col sm:flex-row justify-between
-          items-start sm:items-center gap-4 mb-6">
+            items-start sm:items-center gap-4 mb-6">
             <h1 className="text-2xl font-semibold text-gray-700">Мои задачи</h1>
+              {!loggedIn && (
+                  <span className="ml-2 align-middle text-[11px] px-2 py-0.5
+                  rounded-full bg-[#E7F0DC] text-[#344E41] font-semibold">
+                      гость
+                  </span>
+              )}
             <div className="flex flex-wrap gap-2">
               <button
               onClick={() => setFilter('all')}
@@ -661,11 +695,62 @@ function App() {
                 </span>
                 </button>
             </div>
-            <button onClick={handleLogout} className="text-red-600
-            text-sm hover:underline self-end sm:self-auto">Выйти</button>
+              {loggedIn ? (
+                  <button onClick={handleLogout} className="text-red-600
+                    text-sm hover:underline self-end sm:self-auto">
+                    Выйти
+                  </button>
+              ) : (
+                  <button
+                       onClick={() => { setAuthNotice(''); setAuthOpen(true); }}
+                       className="px-4 py-2 rounded-lg bg-[#3E6B8A] text-white text-sm
+                       font-semibold hover:bg-[#355C77] shadow-sm transition-colors self-end
+                       sm:self-auto"
+                  >
+                      Войти
+                  </button>
+              )}
           </div>
 
-          {error && <p className="text-red-500 mb-4">{error}</p>}
+          {!loggedIn && !bannerHidden && (
+              <div className="relative mb-4 rounded-lg bg-[#F3F7EE] border
+              border-[#DCE9CC] p-4 pr-10 shadow-sm">
+                  <button
+                      type="button"
+                      onClick={() => setBannerHidden(true)}
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/70
+                      hover:bg-white text-[#5F7F4F] flex items-center justify-center text-xs"
+                      aria-label="Скрыть предупреждение"
+                  >
+                      ✕
+                  </button>
+                  <p className="text-sm font-semibold text-[#344E41]">
+                      🌿 Гостевой режим
+                      {tasks.length > 0 && (
+                          <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full
+                          bg-[#DCE9CC] font-semibold">
+                              локально: {tasks.length}
+                          </span>
+                      )}
+                  </p>
+                  <p className="text-sm text-[#4F6B3F] mt-1">
+                      Попробуйте свободно: задачи хранятся только в этом браузере.
+                      Войдите или создайте аккаунт - перенесём всё в облако.
+                  </p>
+                  <button
+                      type="button"
+                      onClick={() => { setAuthNotice(''); setAuthOpen(true); }}
+                      className="mt-3 bg-[#3E6B8A] text-white px-4 py-2 rounded-lg text-sm
+                      font-semibold hover:bg-[#355C77] shadow-sm transition-colors"
+                  >
+                      Войти или зарегистрироваться
+                  </button>
+              </div>
+          )}
+
+          {error && <p className="text-red-500 mb-4">
+                        {error}
+                    </p>}
 
           {showAddForm && (
               <div className="relative mb-6">
@@ -1051,7 +1136,179 @@ function App() {
         >
           +
         </button>
-      </div>
+
+          {authOpen && (
+              <div
+                  className="fixed inset-0 z-50 flex items-center justify-center
+                    p-4 bg-[#1E2A22]/50 backdrop-blur-sm"
+                  style={{animation: 'todoFade .16s ease-out'}}
+                  onMouseDown={(e) => {
+                      if (e.target === e.currentTarget && !authLoading && !syncing) {
+                          setAuthOpen(false);
+                          setAuthNotice('');
+                      }
+                  }}
+              >
+                  <div
+                      role="dialoge"
+                      aria-modal="true"
+                      className="relative bg-white p-8 rounded-xl shadow-xl w-full
+                        max-h-[90vh] overflow-y-auto"
+                      style={{animation: 'todoPop .2s cubic-bezier(.2,.8,.3,1)'}}
+                  >
+                      {!authLoading && !syncing && (
+                          <button
+                              type="button"
+                              onClick={() => { setAuthOpen(false); setAuthNotice(''); }}
+                              className="absolute top-3 right-3 w-8 rounded-full bg-gray-100
+                                hover:bg-gray-200 text-gray-500 flex items-center justify-center
+                                text-sm transition-colors"
+                              aria-label="Закрыть"
+                              title="Продолжить без входа"
+                          >
+                              ✕
+                          </button>
+                      )}
+
+                      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center
+                            rounded-full bg-[#E7F0DC] text-[#344E41] shadow-sm">
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                               stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"
+                               strokeLinejoin="round" aria-hidden="true">
+                              <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                      </div>
+
+                      <h2 className="text-2xl font-bold mb-1 text-center text-[#344E41]">
+                          {isRegisterMode ? 'Создать аккаунт' : 'Вход в ToDO'}
+                      </h2>
+                      <p className="text-sm text-gray-500 text-center mb-5">
+                          {isRegisterMode
+                              ? 'Задачи будут храниться в аккаунте и открываться с любого устройства'
+                              : 'Войдите, чтобы сохранить задачи и открыть их с любого устройства'}
+                      </p>
+
+                      {authNotice && !syncing && (
+                          <div className="mb-4 rounded-lg bg-[#F3F7EE] border border-[#DCE9CC] p-3">
+                              <p className="text-sm text-[#344E41]">{authNotice}</p>
+                          </div>
+                      )}
+
+                      {!loggedIn && tasks.length > 0 && !syncing && (
+                          <div className="mb-4 rounded-lg bg-[#FFF7E6] border border-[#F3E2BE] p-3">
+                              <p className="text-sm text-[#7A5B18]">
+                                  📥 Локальных задач: <b>{tasks.length}</b>. После входа перенесём их в аккаунт.
+                              </p>
+                          </div>
+                      )}
+
+                      {syncing && (
+                          <div className="mb-4" aria-live="polite">
+                              <div className="flex items-center gap-2 text-sm text-[#344E41] mb-2">
+                                  <Spinner className="text-[#5F7F4F]" />
+                                  Переносим задачи… {syncDone} / {syncTotal}
+                              </div>
+                              <div className="h-2 w-full rounded-full bg-[#E7F0DC] overflow-hidden">
+                                  <div className="h-full rounded-full bg-[#94B876] transition-all duration-300"
+                                       style={{width: `${syncTotal
+                                               ? Math.round((syncDone / syncTotal) * 100)
+                                               : 0}%`}} />
+                              </div>
+                          </div>
+                      )}
+
+                      {error && <p className="text-red-500 mb-4 text-sm" role="alert">{error}</p>}
+
+                      <form onSubmit={isRegisterMode ? handleRegister : handleLogin}>
+                        <input
+                            type="email"
+                            autoComplete="email"
+                            inputMode="email"
+                            autoFocus
+                            disabled={authLoading || syncing}
+                            placeholder="Email"
+                            value={email}
+                            onChange={(e) =>
+                            setEmail(e.target.value)}
+                            className="w-full p-3 mb-3 bg-white rounded-lg shadow border-0
+                            text-[#344E41] placeholder-gray-400 focus:outline-none
+                            focus:ring-2 focus:ring-blue-200 transition-shadow
+                            disabled:opacity-60"
+                            required
+                        />
+                        <input
+                            type="password"
+                            autoComplete={isRegisterMode ? 'new-password' : 'current-password'}
+                            disabled={authLoading || syncing}
+                            placeholder="Пароль"
+                            value={password}
+                            onChange={(e) =>
+                            setPassword(e.target.value)}
+                            className="w-full p-3 mb-4 bg-white rounded-lg shadow border-0
+                            text-[#344E41] placeholder-gray-400 focus:outline-none
+                            focus:ring-2 focus:ring-blue-200 transition-shadow
+                            disabled:opacity-60"
+                            required
+                        />
+                        <button
+                            type="submit"
+                            disabled={authLoading || syncing}
+                            className="w-full bg-[#3E6B8A] text-white p-3 rounded-lg
+                            font-semibold hover:bg-[#355C77] active:bg-[#2D4F67]
+                            shadow-sm hover:shadow-md transition-all disabled:opacity-70
+                            disabled:cursor-not-allowed flex items-center
+                            justify-center gap-2"
+                        >
+                            {authLoading && !syncing && <Spinner />}
+                            {syncing ? 'Переносим…'
+                                : authLoading
+                                ? (isRegisterMode ? 'Регистрируем...' : 'Входим...')
+                                : (isRegisterMode ? 'Зарегистрироваться' : 'Войти')}
+                        </button>
+                      </form>
+
+                      {slowHint && !syncing && (
+                        <>
+                            <p className="text-gray-400 text-xs mt-2 text-center">
+                                Сервер просыпается — это может занять некоторое время ☕
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => window.location.reload()}
+                                className="w-full mt-1 text-gray-400 text-xs
+                                    hover:underline"
+                            >
+                                Зависло? Перезагрузить страницу
+                            </button>
+                        </>
+                      )}
+
+                      <button
+                        type="button"
+                        disabled={authLoading || syncing}
+                        onClick={() => { setIsRegisterMode(!isRegisterMode); setError(''); }}
+                        className="w-full mt-3 text-[#4F6B3F] text-sm hover:text-[#344E41]
+                            hover:underline transition-colors disabled:opacity-60"
+                      >
+                        {isRegisterMode ? 'Уже есть аккаунт? Войти' :
+                            'Нет аккаунта? Зарегистрироваться'}
+                      </button>
+
+                      {!authLoading && !syncing && (
+                          <button
+                              type="button"
+                              onClick={() => { setAuthOpen(false); setAuthNotice(''); }}
+                              className="w-full mt-2 text-gray-400 text-xs
+                              hover:text-gray-600 hover:underline"
+                          >
+                              Продолжить без входа
+                          </button>
+                      )}
+
+                  </div>
+              </div>
+          )}
+    </div>
   );
 }
 

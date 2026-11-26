@@ -43,6 +43,7 @@ public class SecurityConfig {
                                 .requestMatchers("/actuator/health").permitAll()
                                 .requestMatchers("/actuator/prometheus").permitAll()
                                 .requestMatchers("/actuator/**").permitAll()
+                                .requestMatchers("/api/ping").permitAll()
                                 .anyRequest().authenticated()
                         )
                 .sessionManagement(
