@@ -30,18 +30,23 @@
 
 ## 🛠 Стек
 
-| Слой | Технологии |
-|------|-----------|
-| **Backend** | Java 17, Spring Boot 4.1.1, Spring Security, Spring Data JPA, Flyway, JWT (jjwt), Swagger (springdoc), Actuator |
-| **Database** | PostgreSQL 16 |
-| **Frontend** | React 19, TypeScript, Vite, TailwindCSS, PWA (vite-plugin-pwa) |
-| **Infrastructure** | Docker, Docker Compose, Nginx (reverse proxy) |
-| **CI/CD** | GitHub Actions, Render (backend), Vercel (frontend) |
-| **Tests** | JUnit 5, Mockito, `@WebMvcTest`, Testcontainers |
+| Слой | Технологии                                                                                                                                                                   |
+|------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Backend** | Java 17, Spring Boot 4.1.1, Spring Security, Spring Data JPA (Hibernate 7), Flyway, JWT (jjwt, SHA-256, Rotation), Spring `@Scheduled` (Cron), Swagger (springdoc), Actuator |
+| **Database** | PostgreSQL 16                                                                                                                                                                |
+| **Frontend** | React 19, TypeScript, Vite, TailwindCSS, PWA (vite-plugin-pwa)                                                                                                               |
+| **Infrastructure** | Docker, Docker Compose, Nginx (reverse proxy)                                                                                                                                |
+| **CI/CD** | GitHub Actions, Render (backend), Vercel (frontend)                                                                                                                          |
+| **Tests** | JUnit 5, Mockito, `@WebMvcTest`, Testcontainers                                                                                                                              |
 
 ## ✨ Возможности
 
 - 🔐 **JWT-аутентификация** — регистрация, вход, защищённые эндпоинты
+- 🔄 **Безопасная JWT-авторизация**: Access-токен (15 мин) + Refresh-токен (30 дней) с ротацией. 
+       Хэширование refresh-токенов (SHA-256) в БД, автоматическая очистка протухших токенов 
+       при старте приложения и по ночному cron-заданию.
+- 🧹 **Self-cleaning DB**: Автоматическое удаление протухших refresh-токенов из БД при старте приложения 
+        и ежедневно ночью через `@Scheduled` (Cron), что предотвращает разрастание таблицы.
 - 👥 **Многопользовательскость** — каждый видит только свои задачи
 - ✅ **CRUD задач** — создание, редактирование, удаление, отметка «выполнено»
 - 🎯 **Приоритеты** — LOW / MEDIUM / HIGH
@@ -72,7 +77,7 @@
 
 - **DTO** — `TaskRequestDTO`, `TaskResponseDTO`, `AuthRequest` (без `Map<String, String>`)
 - **Связи** — `User @OneToMany → Task`, `Task @ManyToOne → User`
-- **Схема БД** — управляется через Flyway (`ddl-auto: validate`), 4 миграции
+- **Схема БД** — управляется через Flyway (`ddl-auto: validate`), 6 миграций, таблица `refresh_tokens` связанная с `User`
 
 ## 🚀 Запуск локально
 
@@ -88,13 +93,10 @@ docker compose up --build
 
 После сборки:
 
-Приложение: http://localhost
-
-Swagger: http://localhost:8081/swagger-ui.html
-
-Health: http://localhost:8081/actuator/health
-
-PostgreSQL: 127.0.0.1:5432, БД todo_db, пользователь postgres, пароль postgres
+После сборки будут доступны следующие сервисы:
+- **todo-frontend**: http://localhost (Nginx проксирует на бэкенд)
+- **todo-backend**: http://localhost:8081 (Swagger, API, Actuator)
+- **todo-db**: PostgreSQL 16 (порт 5432, БД: `todo_db`, user: `postgres`, pass: `postgres`)
 
 Остановить:
 
@@ -137,14 +139,16 @@ npm run dev
 
 ### Основные эндпоинты
 
-Метод	Путь	Описание	Auth
-POST	/api/auth/register	Регистрация	❌
-POST	/api/auth/login	Вход, возвращает JWT	❌
-GET	/api/tasks	Список задач (пагинация, фильтр)	✅
-POST	/api/tasks	Создать задачу	✅
-PUT	/api/tasks/{id}	Обновить задачу	✅
-DELETE	/api/tasks/{id}	Удалить задачу	✅
-PATCH	/api/tasks/{id}/toggle	Переключить «выполнено»	✅
+| Метод | Путь                     | Описание                                         | Auth                              | 
+|-------|--------------------------|--------------------------------------------------|-----------------------------------|
+| POST  | `/api/auth/register`     | Регистрация                                      | ❌                                 |
+| POST  | `/api/auth/login`        | Вход, возвращает JWT                             | ❌                                 |
+| POST  | `/api/auth/refresh`      | Обновление пары токенов (Refresh Token Rotation) | ✅ (нужен валидный refresh token)  |
+| GET   | `/api/tasks`             | Список задач (пагинация, фильтр)                 | ✅                                 |
+| POST  | `/api/tasks`             | Создать задачу                                   | ✅                                 |
+| PUT   | `/api/tasks/{id}`        | Обновить задачу                                  | ✅                                 |
+|DELETE | `/api/tasks/{id}`        | Удалить задачу                                   | ✅                                 |
+|PATCH  | `/api/tasks/{id}/toggle` | Переключить «выполнено»                          | ✅                                 |
 
 Пример: вход
 ```bash
