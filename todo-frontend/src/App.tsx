@@ -637,22 +637,42 @@ function App() {
                 'Тяни ещё...'
             ) : null}
           </div>
-          <div className="flex flex-col sm:flex-row justify-between
-            items-start sm:items-center gap-4 mb-6">
-            <h1 className="text-2xl font-semibold text-gray-700">Мои задачи</h1>
-              {!loggedIn && (
-                  <span className="ml-2 align-middle text-[11px] px-2 py-0.5
-                  rounded-full bg-[#E7F0DC] text-[#344E41] font-semibold">
+          <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-semibold text-gray-700">Мои задачи</h1>
+                  {!loggedIn && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full
+                    bg-[#E7F0DC] text-[#344E41] font-semibold">
                       гость
-                  </span>
+                    </span>
+                  )}
+              </div>
+
+              {loggedIn ? (
+                  <button
+                      onClick={handleLogout}
+                      className="text-sm font-medium text-red-600 hover:text-red-700
+                      hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
+                      Выйти
+                  </button>
+              ) : (
+                  <button
+                      onClick={() => { setAuthNotice(''); setAuthOpen(true); }}
+                      className="px-4 py-2 rounded-lg bg-[#5F7F5A] text-white text-sm
+                       font-semibold hover:bg-[#526E4D] shadow-sm transition-colors"
+                  >
+                      Войти
+                  </button>
               )}
-            <div className="flex flex-wrap gap-2">
+          </div>
+
+            <div className="flex flex-wrap gap-2 mb-6">
               <button
               onClick={() => setFilter('all')}
               className={`px-4 py-2 rounded-lg text-sm font-medium 
               transition-colors ${
                 filter === 'all' 
-                    ? 'bg-[#3E6B8A] text-white shadow-sm hover:bg-[#355C77]' 
+                    ? 'bg-[#5F7F5A] text-white shadow-sm hover:bg-[#526E4D]' 
                     : 'bg-white text-gray-700 hover:bg-gray-100'
               }`}
               >
@@ -663,7 +683,7 @@ function App() {
               className={`px-4 py-2 rounded-lg text-sm font-medium 
               transition-colors ${
                 filter === 'active' 
-                    ? 'bg-[#3E6B8A] text-white shadow-sm hover:bg-[#355C77]' 
+                    ? 'bg-[#5F7F5A] text-white shadow-sm hover:bg-[#526E4D]' 
                     : 'bg-white text-gray-700 hover:bg-gray-100'
               }`}
               >
@@ -675,42 +695,14 @@ function App() {
                   className={`px-4 py-2 rounded-lg text-sm font-medium 
                   transition-colors ${
                     filter === 'completed' 
-                        ? 'bg-[#3E6B8A] text-white shadow-sm hover:bg-[#355C77]' 
+                        ? 'bg-[#5F7F5A] text-white shadow-sm hover:bg-[#526E4D]' 
                         : 'bg-white text-gray-700 hover:bg-gray-100'
                   }`}
               >
                 Выполненные ({tasks.filter((t) => t
                   .isCompleted).length})
               </button>
-                <button
-                    onClick={() => { setTasksLoading(true); void loadTasks(); }}
-                    disabled={tasksLoading}
-                    className="px-3 py-2 rounded-lg bg-white text-gray-700
-                  hover:bg-gray-100 disabled:opacity-50"
-                    title="Обновить"
-                >
-                <span className={tasksLoading ? 'inline-block animate-spin'
-                    : ''}>
-                  ⟳
-                </span>
-                </button>
             </div>
-              {loggedIn ? (
-                  <button onClick={handleLogout} className="text-red-600
-                    text-sm hover:underline self-end sm:self-auto">
-                    Выйти
-                  </button>
-              ) : (
-                  <button
-                       onClick={() => { setAuthNotice(''); setAuthOpen(true); }}
-                       className="px-4 py-2 rounded-lg bg-[#3E6B8A] text-white text-sm
-                       font-semibold hover:bg-[#355C77] shadow-sm transition-colors self-end
-                       sm:self-auto"
-                  >
-                      Войти
-                  </button>
-              )}
-          </div>
 
           {!loggedIn && !bannerHidden && (
               <div className="relative mb-4 rounded-lg bg-[#F3F7EE] border
@@ -740,8 +732,8 @@ function App() {
                   <button
                       type="button"
                       onClick={() => { setAuthNotice(''); setAuthOpen(true); }}
-                      className="mt-3 bg-[#3E6B8A] text-white px-4 py-2 rounded-lg text-sm
-                      font-semibold hover:bg-[#355C77] shadow-sm transition-colors"
+                      className="mt-3 bg-[#5F7F5A] text-white px-4 py-2 rounded-lg text-sm
+                      font-semibold hover:bg-[#526E4D] shadow-sm transition-colors"
                   >
                       Войти или зарегистрироваться
                   </button>
@@ -1150,10 +1142,10 @@ function App() {
                   }}
               >
                   <div
-                      role="dialoge"
+                      role="dialog"
                       aria-modal="true"
-                      className="relative bg-white p-8 rounded-xl shadow-xl w-full
-                        max-h-[90vh] overflow-y-auto"
+                      className="relative bg-white p-5 sm:p-6 rounded-xl shadow-xl w-full
+                        max-w-sm max-h-[85vh] overflow-y-auto"
                       style={{animation: 'todoPop .2s cubic-bezier(.2,.8,.3,1)'}}
                   >
                       {!authLoading && !syncing && (
@@ -1253,8 +1245,8 @@ function App() {
                         <button
                             type="submit"
                             disabled={authLoading || syncing}
-                            className="w-full bg-[#3E6B8A] text-white p-3 rounded-lg
-                            font-semibold hover:bg-[#355C77] active:bg-[#2D4F67]
+                            className="w-full bg-[#5F7F5A] text-white p-3 rounded-lg
+                            font-semibold hover:bg-[#526E4D] active:bg-[#465D41]
                             shadow-sm hover:shadow-md transition-all disabled:opacity-70
                             disabled:cursor-not-allowed flex items-center
                             justify-center gap-2"
